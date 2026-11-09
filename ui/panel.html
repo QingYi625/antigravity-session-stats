@@ -97,7 +97,7 @@
 </main>
 <script>
 (() => {
-  const REFRESH_MS = 3000;
+  const REFRESH_MS = 1000;
   const $ = (id) => document.getElementById(id);
   const pending = new Map();
   let nextId = 1;
@@ -279,7 +279,7 @@
   (async () => {
     try {
       const init = await request("ui/initialize", {
-        appInfo: { name: "session-stats-panel", version: "0.3.0" },
+        appInfo: { name: "session-stats-panel", version: "0.4.0" },
         appCapabilities: { availableDisplayModes: ["inline", "fullscreen"] },
         protocolVersion: "2026-01-26",
       });

@@ -1,7 +1,7 @@
 import { getSessionStats } from "./stats.mjs";
 import readline from "node:readline";
 
-const INTERVAL_MS = Number(process.env.SESSION_STATS_INTERVAL_MS) || 3000;
+const INTERVAL_MS = Number(process.env.SESSION_STATS_INTERVAL_MS) || 1000;
 let activeTitle = "";
 
 function compact(value) {

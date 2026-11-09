@@ -6,7 +6,7 @@ Live statistics for the current Google Antigravity conversation: turns, steps, m
 
 The project has two parts, and either one can be used on its own:
 
-- **Antigravity plugin**: opens an MCP App statistics panel that refreshes every 3 seconds. If an Antigravity build does not render the UI resource, the tool's text result remains available as a fallback.
+- **Antigravity plugin**: opens an MCP App statistics panel that refreshes every second. If an Antigravity build does not render the UI resource, the tool's text result remains available as a fallback.
 - **Bottom bar (Windows only)**: a small transparent bar centered below the Antigravity composer. It follows the Antigravity window, opens detail cards when clicked, and can start with Windows.
 
 All data is read locally. Nothing is uploaded.
@@ -74,7 +74,7 @@ Antigravity keeps that SQLite database open. The server copies the database (plu
   Invalid, zero, or non-integer values are ignored and fall back to 256,000. Restart the MCP server or Antigravity after changing the environment so the new value is loaded.
 - **Running / idle** is a 15-minute activity heuristic, not a real-time task-state field from Antigravity.
 
-Token accounting is incremental. After the first read, only appended bytes are parsed, so a large transcript does not need to be rescanned every 3 seconds.
+Token accounting is incremental. After the first read, only appended bytes are parsed, so a large transcript does not need to be rescanned every second.
 
 ## Requirements
 
@@ -126,7 +126,7 @@ skills/session-stats/SKILL.md
 
 The plugin's own `mcp_config.json` uses `${PLUGIN_ROOT}`. The Antigravity language server contains that placeholder, but loading local plugins through it has not been verified, so registering the server directly in step 2 is the tested path.
 
-Start a new conversation and ask to open the session statistics panel, or invoke the `session_stats_panel` tool. The panel refreshes every 3 seconds and always keeps the tool's text result as a non-UI fallback.
+Start a new conversation and ask to open the session statistics panel, or invoke the `session_stats_panel` tool. The panel refreshes every second and always keeps the tool's text result as a non-UI fallback.
 
 To uninstall, remove the `session-stats` entry from `mcp_config.json`, delete the `session-stats` plugin directory, and restart Antigravity.
 

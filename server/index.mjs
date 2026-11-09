@@ -4,7 +4,7 @@ import readline from "node:readline";
 import { fileURLToPath } from "node:url";
 import { getSessionStats } from "./stats.mjs";
 
-const SERVER_INFO = { name: "antigravity-session-stats", version: "0.3.0" };
+const SERVER_INFO = { name: "antigravity-session-stats", version: "0.4.0" };
 const UI_URI = "ui://session-stats/panel.html";
 const UI_MIME = "text/html;profile=mcp-app";
 const SUPPORTED_PROTOCOLS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];

@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format is based on 
 
 本项目的重要改动都记录在这里。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.4.0] - 2026-11-09
+
+### Changed / 变更
+
+- **Refreshes every second.** The stats panel and the bottom bar now update every second instead of every 3 seconds, matching the Codex version. Each refresh still reads only newly appended log bytes.
+- **面板和底部统计条改为每秒刷新**，以前是每 3 秒，和 Codex 版保持一致。每次刷新仍然只读取日志新增的部分。
+
 ## [0.3.0] - 2026-11-09
 
 ### Changed / 变更
