@@ -57,7 +57,8 @@ Antigravity 会持续占用这个 SQLite 数据库。服务会先把主数据库
 - **模型用时**：从每轮 `USER_INPUT` 到该轮最后一个事件的墙钟时间，减去其中的工具调用区间，是估算值。仍活跃的最后一轮会计到当前时间，并沿用原项目的 15 分钟空闲保护。
 - **工具调用用时**：从 `GENERIC` 工具结果文本中的 `Created At` 和 `Completed At` 行计算；同一轮内重叠的区间会合并。被取消或缺少时间行的工具结果不贡献时长，但仍计入调用次数。
 - **TTFT 是近似值**：Antigravity 没有记录首 token 时间，这里用每轮 `USER_INPUT` 到第一个 `PLANNER_RESPONSE` 的时间差。日志时间戳只有秒级精度，因此不足一秒的差值可能显示为 0。
-- **输出速度**：输出 Token 总量除以估算的模型用时，不是服务商直接返回的 TPS。
+- **输出速度**：只使用完整的 `PLANNER_RESPONSE` 步。时间戳按步骤开始时间处理，单步窗口为“下一条记录的 `created_at` − 本条 planner 的 `created_at`”。工具结果记录的 `created_at` 通常对应工具 `Created At`，因此窗口主要覆盖生成和工具调度，不包含工具实际执行时间。下一条记录是 `USER_INPUT`（等待用户）或 `SYSTEM_MESSAGE`（模型已停下、等待后台消息）的步骤，以及同秒或负窗口、没有下一条记录、窗口超过 600 秒的步骤，其 Token 和时间都不计入 TPS；没有可用步骤时回退到旧的“输出 Token ÷ 模型用时”算法。界面的“模型用时”口径保持不变。
+- **TPS 仍是估算值**：时间戳只有秒级精度，单步窗口可能包含首 token 等待，也可能混入短于 10 分钟阈值的调度或审批停顿。被排除步骤仍计入总 Token，但不计入 TPS。它不是服务商直接返回的 TPS。
 - **当前上下文是估算值**：Antigravity 不提供真实上下文窗口大小，也没有模型名称，本地数据只有 `MODEL_PLACEHOLDER_...` 一类编号。本项目统一按 256,000 Token 估算，并返回 `windowEstimated: true`。
 - **`context.used`** 取最近一条 `PLANNER_RESPONSE` 的 `input_tokens + cache_read_tokens`。`CHECKPOINT` 的用量不算作压缩后的上下文；如果压缩后还没有新的 `PLANNER_RESPONSE`，`used` 为 `null`，界面提示“刚压缩，等待下一步”。
 - **`context.compactions`** 是本对话的 `CHECKPOINT` 条数。`CHECKPOINT` 的 Token 仍计入总 Token 用量，但不计入上下文 `used`。

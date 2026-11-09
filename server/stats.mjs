@@ -13,6 +13,8 @@ const RECENT_LIMIT = 30;
 const LIVE_IDLE_MS = 15 * 60 * 1000;
 const TOKEN_RECORD_TYPES = new Set(["PLANNER_RESPONSE", "CHECKPOINT"]);
 const ESTIMATED_CONTEXT_WINDOW = 256000;
+const TPS_MAX_STEP_WINDOW_MS = 10 * 60 * 1000;
+const TPS_WAITING_NEXT_TYPES = new Set(["USER_INPUT", "SYSTEM_MESSAGE"]);
 
 function configuredContextWindow(value) {
   if (typeof value !== "string" || !/^\d+$/.test(value.trim())) return ESTIMATED_CONTEXT_WINDOW;
@@ -240,6 +242,13 @@ function newState(filePath) {
     compactions: 0,
     model: null,
     lastEventMs: 0,
+    pendingPlanner: null,
+    tpsIncludedSteps: 0,
+    tpsOutputTokens: 0,
+    tpsWindowMs: 0,
+    tpsExcludedSameSecond: 0,
+    tpsExcludedOverThreshold: 0,
+    tpsExcludedWaiting: 0,
   };
 }
 
@@ -281,6 +290,32 @@ function parseToolInterval(content) {
   return [startMs, endMs];
 }
 
+function settlePendingPlanner(state, nextTimestampMs, nextType) {
+  const pending = state.pendingPlanner;
+  if (!pending) return;
+  state.pendingPlanner = null;
+  if (TPS_WAITING_NEXT_TYPES.has(nextType)) {
+    state.tpsExcludedWaiting += 1;
+    return;
+  }
+  if (!pending.startedAtMs || !nextTimestampMs) {
+    state.tpsExcludedSameSecond += 1;
+    return;
+  }
+  const windowMs = nextTimestampMs - pending.startedAtMs;
+  if (windowMs <= 0) {
+    state.tpsExcludedSameSecond += 1;
+    return;
+  }
+  if (windowMs > TPS_MAX_STEP_WINDOW_MS) {
+    state.tpsExcludedOverThreshold += 1;
+    return;
+  }
+  state.tpsIncludedSteps += 1;
+  state.tpsOutputTokens += pending.outputTokens;
+  state.tpsWindowMs += windowMs;
+}
+
 function handleRecord(state, line) {
   let record;
   try {
@@ -291,6 +326,7 @@ function handleRecord(state, line) {
 
   const type = typeof record.type === "string" ? record.type : "";
   const timestampMs = Date.parse(record.created_at) || 0;
+  settlePendingPlanner(state, timestampMs, type);
   if (timestampMs > state.lastEventMs) state.lastEventMs = timestampMs;
   if (typeof record.model === "string" && record.model) state.model = record.model;
 
@@ -322,6 +358,7 @@ function handleRecord(state, line) {
     state.cachedTokens += cached;
     state.outputTokens += output;
     if (type === "PLANNER_RESPONSE") {
+      state.pendingPlanner = { startedAtMs: timestampMs, outputTokens: output };
       state.lastPlannerUsage = { totalInput: input + cached, timestampMs };
     } else {
       state.compactions += 1;
@@ -422,6 +459,8 @@ function summarize(state, now) {
 
   const totalInput = state.inputTokens + state.cachedTokens;
   const contextUsed = state.lastPlannerUsage ? state.lastPlannerUsage.totalInput : null;
+  const legacyOutputTps = modelTimeMs > 0 ? state.outputTokens / (modelTimeMs / 1000) : null;
+  const hasTpsSamples = state.tpsIncludedSteps > 0 && state.tpsWindowMs > 0;
   return {
     turns: state.userTurns,
     steps: state.steps,
@@ -430,7 +469,17 @@ function summarize(state, now) {
     modelTimeMs,
     toolTimeMs,
     avgTtftMs: ttftCount ? Math.round(ttftSum / ttftCount) : null,
-    outputTps: modelTimeMs > 0 ? state.outputTokens / (modelTimeMs / 1000) : null,
+    outputTps: hasTpsSamples ? state.tpsOutputTokens / (state.tpsWindowMs / 1000) : legacyOutputTps,
+    tps: {
+      includedSteps: state.tpsIncludedSteps,
+      excludedSameSecond: state.tpsExcludedSameSecond,
+      excludedNoNext: state.pendingPlanner ? 1 : 0,
+      excludedOverThreshold: state.tpsExcludedOverThreshold,
+      excludedWaiting: state.tpsExcludedWaiting,
+      outputTokens: state.tpsOutputTokens,
+      windowMs: state.tpsWindowMs,
+      fallback: !hasTpsSamples,
+    },
     tokens: {
       total: totalInput + state.outputTokens,
       input: totalInput,
