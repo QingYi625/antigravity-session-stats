@@ -1,0 +1,15 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "session-stats",
+  "displayName": "Antigravity Session Stats",
+  "version": "0.2.0",
+  "description": "Live turn, step, timing, throughput, token cache, and estimated context statistics for the current Antigravity conversation.",
+  "logo": "assets/icon.svg",
+  "author": {
+    "name": "QingYi625",
+    "url": "https://github.com/QingYi625"
+  },
+  "license": "MIT",
+  "keywords": ["antigravity", "gemini", "tokens", "usage", "statistics"],
+  "suggestedPrompts": ["打开会话统计面板", "Show my Antigravity token usage"]
+}

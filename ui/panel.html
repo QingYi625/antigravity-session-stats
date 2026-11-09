@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>会话统计</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: var(--color-background-primary, #ffffff);
+    --card: var(--color-background-secondary, #f6f7f9);
+    --text: var(--color-text-primary, #1f2328);
+    --muted: var(--color-text-secondary, #656d76);
+    --border: var(--color-border-tertiary, rgba(0, 0, 0, 0.08));
+    --accent: #6d5dfc;
+    --good: #22a45d;
+    --radius: var(--border-radius-lg, 12px);
+    font-family: var(--font-sans, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: var(--color-background-primary, #1e1f22);
+      --card: var(--color-background-secondary, #2a2b2f);
+      --text: var(--color-text-primary, #e6e6e6);
+      --muted: var(--color-text-secondary, #9a9ca3);
+      --border: var(--color-border-tertiary, rgba(255, 255, 255, 0.08));
+      --accent: #9b8cff;
+    }
+  }
+  [data-theme="dark"] {
+    --bg: var(--color-background-primary, #1e1f22);
+    --card: var(--color-background-secondary, #2a2b2f);
+    --text: var(--color-text-primary, #e6e6e6);
+    --muted: var(--color-text-secondary, #9a9ca3);
+    --border: var(--color-border-tertiary, rgba(255, 255, 255, 0.08));
+    --accent: #9b8cff;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-size: 13px; }
+  main { padding: 12px; display: grid; gap: 10px; }
+  header { display: flex; align-items: center; gap: 8px; }
+  header h1 { margin: 0; font-size: 15px; font-weight: 600; flex: 1; }
+  .live { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 12px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+  .dot.on { background: var(--good); box-shadow: 0 0 0 3px rgba(34, 164, 93, 0.18); }
+  .dot.err { background: #d1242f; }
+  select, button {
+    font: inherit; color: var(--text); background: var(--card);
+    border: 1px solid var(--border); border-radius: 8px; padding: 5px 8px;
+  }
+  select { width: 100%; }
+  button { cursor: pointer; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 4px 12px; }
+  .card-head { display: flex; align-items: baseline; justify-content: space-between; padding: 10px 0 8px; border-bottom: 1px solid var(--border); }
+  .card-head span:first-child { font-weight: 600; }
+  .big { color: var(--accent); font-weight: 700; font-size: 16px; font-variant-numeric: tabular-nums; }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .row:last-child { border-bottom: 0; }
+  .row > span:first-child { color: var(--muted); }
+  .row > span:last-child { font-variant-numeric: tabular-nums; text-align: right; }
+  .tag { display: inline-block; margin-left: 4px; padding: 0 4px; border: 1px solid var(--border); border-radius: 4px; color: var(--muted); font-size: 10px; line-height: 15px; vertical-align: 1px; cursor: help; }
+  .bar { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; margin: -2px 0 8px; }
+  .bar > div { height: 100%; width: 0; background: var(--good); transition: width 0.4s ease; }
+  .foot { color: var(--muted); font-size: 11px; display: flex; justify-content: space-between; gap: 8px; }
+  .error { color: #d1242f; white-space: pre-wrap; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>会话统计</h1>
+    <span class="live"><span class="dot" id="dot"></span><span id="liveText">连接中</span></span>
+    <button id="pause" title="暂停或恢复自动刷新">暂停</button>
+  </header>
+  <select id="thread" title="选择要统计的会话"></select>
+  <div id="error" class="error hidden"></div>
+  <section class="card">
+    <div class="card-head"><span>会话统计</span><span class="big" id="turnsSteps">—</span></div>
+    <div class="row"><span>模型用时</span><span id="modelTime">—</span></div>
+    <div class="row"><span>工具调用用时</span><span id="toolTime">—</span></div>
+    <div class="row"><span>工具调用次数</span><span id="toolCalls">—</span></div>
+    <div class="row"><span>首 token 平均（TTFT）</span><span id="ttft">—</span></div>
+    <div class="row"><span>输出速度（TPS）</span><span id="tps">—</span></div>
+  </section>
+  <section class="card">
+    <div class="card-head"><span>Token 用量</span><span class="big" id="totalTokens">—</span></div>
+    <div class="row"><span>缓存命中</span><span id="hitRate">—</span></div>
+    <div class="bar"><div id="hitBar"></div></div>
+    <div class="row"><span>未缓存输入</span><span id="uncached">—</span></div>
+    <div class="row"><span>缓存读取</span><span id="cached">—</span></div>
+    <div class="row"><span>输出</span><span id="output">—</span></div>
+    <div class="row"><span>当前上下文 <span class="tag" id="contextEstimate" title="Antigravity 不提供上下文上限，按 256,000 估算">估算</span></span><span id="context">—</span></div>
+    <div class="row"><span>已压缩</span><span id="compactions">—</span></div>
+  </section>
+  <div class="foot"><span id="model"></span><span id="updated"></span></div>
+</main>
+<script>
+(() => {
+  const REFRESH_MS = 3000;
+  const $ = (id) => document.getElementById(id);
+  const pending = new Map();
+  let nextId = 1;
+  let pinnedThread = null;
+  let hintIds = [];
+  let paused = false;
+  let timer = null;
+  let busy = false;
+
+  function post(message) { window.parent.postMessage(message, "*"); }
+  function request(method, params) {
+    const id = nextId++;
+    post({ jsonrpc: "2.0", id, method, params });
+    return new Promise((resolve, reject) => {
+      pending.set(id, { resolve, reject });
+      setTimeout(() => {
+        if (pending.has(id)) { pending.delete(id); reject(new Error(method + " 超时")); }
+      }, 15000);
+    });
+  }
+  function notify(method, params) { post({ jsonrpc: "2.0", method, params: params || {} }); }
+
+  window.addEventListener("message", (event) => {
+    const data = event.data;
+    if (!data || data.jsonrpc !== "2.0") return;
+    if (data.id !== undefined && pending.has(data.id) && !data.method) {
+      const entry = pending.get(data.id);
+      pending.delete(data.id);
+      if (data.error) entry.reject(new Error(data.error.message || "请求失败"));
+      else entry.resolve(data.result);
+      return;
+    }
+    if (data.method === "ui/notifications/tool-result" && data.params) {
+      render(data.params.structuredContent);
+    } else if (data.method === "ui/notifications/tool-input" && data.params && data.params.arguments) {
+      if (data.params.arguments.threadId) pinnedThread = data.params.arguments.threadId;
+    } else if (data.method === "ui/notifications/host-context-changed" && data.params) {
+      applyContext(data.params);
+    } else if (data.method === "ui/resource-teardown" && data.id !== undefined) {
+      clearInterval(timer);
+      post({ jsonrpc: "2.0", id: data.id, result: {} });
+    } else if (data.method && data.id !== undefined) {
+      post({ jsonrpc: "2.0", id: data.id, error: { code: -32601, message: "Method not found" } });
+    }
+  });
+
+  function collectHints(value, depth, out) {
+    if (!value || depth > 4 || out.length > 20) return;
+    if (typeof value === "string") {
+      const match = value.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+      if (match && !out.includes(match[0])) out.push(match[0]);
+      return;
+    }
+    if (typeof value === "object") for (const key of Object.keys(value)) {
+      if (key === "styles") continue;
+      collectHints(value[key], depth + 1, out);
+    }
+  }
+  function applyContext(context) {
+    if (context.theme) document.documentElement.dataset.theme = context.theme;
+    const vars = context.styles && context.styles.variables;
+    if (vars) for (const [key, value] of Object.entries(vars)) if (value) document.documentElement.style.setProperty(key, value);
+    const hints = [];
+    collectHints(context, 0, hints);
+    if (hints.length) hintIds = hints;
+  }
+
+  const fmtInt = (value) => (value === null || value === undefined ? "—" : Number(value).toLocaleString("en-US"));
+  const fmtTok = (value) => fmtInt(value) + " tok";
+  function fmtDuration(ms) {
+    if (ms === null || ms === undefined) return "—";
+    const total = Math.round(ms / 1000);
+    const hours = Math.floor(total / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+    const seconds = total % 60;
+    if (hours) return `${hours}小时${minutes}分${seconds}秒`;
+    if (minutes) return `${minutes}分${seconds}秒`;
+    return `${seconds}秒`;
+  }
+  function setStatus(kind, text) {
+    $("dot").className = "dot" + (kind === "on" ? " on" : kind === "err" ? " err" : "");
+    $("liveText").textContent = text;
+  }
+
+  function renderThreads(threads, currentId) {
+    const select = $("thread");
+    const signature = threads.map((t) => t.id + t.title).join("|") + currentId + (pinnedThread ? "p" : "a");
+    if (select.dataset.signature === signature) return;
+    select.dataset.signature = signature;
+    select.innerHTML = "";
+    const auto = document.createElement("option");
+    auto.value = "";
+    auto.textContent = "自动：最近活动的会话";
+    select.appendChild(auto);
+    for (const thread of threads) {
+      const option = document.createElement("option");
+      option.value = thread.id;
+      option.textContent = thread.title;
+      select.appendChild(option);
+    }
+    select.value = pinnedThread || "";
+    if (!pinnedThread && currentId) {
+      const current = threads.find((t) => t.id === currentId);
+      if (current) auto.textContent = "自动：" + current.title;
+    }
+  }
+
+  function render(result) {
+    if (!result) return;
+    if (result.threads) renderThreads(result.threads, result.thread && result.thread.id);
+    if (!result.ok) {
+      $("error").textContent = result.error || "读取失败";
+      $("error").classList.remove("hidden");
+      setStatus("err", "读取失败");
+      return;
+    }
+    $("error").classList.add("hidden");
+    const s = result.stats;
+    $("turnsSteps").textContent = `${s.turns} 轮 ${s.steps} 步`;
+    $("modelTime").textContent = fmtDuration(s.modelTimeMs);
+    $("toolTime").textContent = fmtDuration(s.toolTimeMs);
+    $("toolCalls").textContent = fmtInt(s.toolCalls);
+    $("ttft").textContent = s.avgTtftMs === null ? "—" : (s.avgTtftMs / 1000).toFixed(1) + "秒";
+    $("tps").textContent = s.outputTps === null ? "—" : s.outputTps.toFixed(1) + " tok/s";
+    const t = s.tokens;
+    $("totalTokens").textContent = fmtTok(t.total);
+    $("hitRate").textContent = t.cacheHitRate === null ? "—" : (t.cacheHitRate * 100).toFixed(1) + "%";
+    $("hitBar").style.width = t.cacheHitRate === null ? "0" : (t.cacheHitRate * 100).toFixed(1) + "%";
+    $("uncached").textContent = fmtTok(t.uncachedInput);
+    $("cached").textContent = fmtTok(t.cachedInput);
+    $("output").textContent = fmtTok(t.output);
+    const c = s.context;
+    if (c.window) {
+      $("contextEstimate").title = `Antigravity 不提供上下文上限，按 ${fmtInt(c.window)} 估算；可用 SESSION_STATS_CONTEXT_WINDOW 覆盖`;
+    }
+    if (c.used === null || c.used === undefined) {
+      $("context").textContent = c.compactions > 0 ? "刚压缩，等待下一步" : "—";
+    } else if (c.window) {
+      const rate = Number.isFinite(c.usedRate) ? c.usedRate : c.used / c.window;
+      $("context").textContent = `${fmtInt(c.used)} / ${fmtInt(c.window)}（${Math.round(rate * 100)}%）`;
+    } else {
+      $("context").textContent = fmtTok(c.used);
+    }
+    $("compactions").textContent = `${fmtInt(c.compactions || 0)} 次`;
+    $("model").textContent = s.model ? "模型：" + s.model : "";
+    $("updated").textContent = "更新于 " + new Date(result.generatedAt).toLocaleTimeString();
+    if (paused) setStatus("", "已暂停");
+    else setStatus("on", s.running ? "运行中 · 3秒刷新" : "空闲 · 3秒刷新");
+  }
+
+  async function refresh() {
+    if (busy) return;
+    busy = true;
+    try {
+      const args = pinnedThread ? { threadId: pinnedThread } : { hintIds };
+      const result = await request("tools/call", { name: "session_stats_refresh", arguments: args });
+      render(result && result.structuredContent);
+    } catch (error) {
+      $("error").textContent = "刷新失败：" + error.message;
+      $("error").classList.remove("hidden");
+      setStatus("err", "刷新失败");
+    } finally {
+      busy = false;
+    }
+  }
+
+  $("thread").addEventListener("change", (event) => {
+    pinnedThread = event.target.value || null;
+    $("thread").dataset.signature = "";
+    refresh();
+  });
+  $("pause").addEventListener("click", () => {
+    paused = !paused;
+    $("pause").textContent = paused ? "继续" : "暂停";
+    if (paused) setStatus("", "已暂停"); else refresh();
+  });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && !paused) refresh(); });
+
+  (async () => {
+    try {
+      const init = await request("ui/initialize", {
+        appInfo: { name: "session-stats-panel", version: "0.2.0" },
+        appCapabilities: { availableDisplayModes: ["inline", "fullscreen"] },
+        protocolVersion: "2026-01-26",
+      });
+      if (init && init.hostContext) applyContext(init.hostContext);
+    } catch (error) {
+      setStatus("err", "未连接");
+    }
+    notify("ui/notifications/initialized");
+    refresh();
+    timer = setInterval(() => { if (!paused && !document.hidden) refresh(); }, REFRESH_MS);
+    if (window.ResizeObserver) {
+      new ResizeObserver(() => notify("ui/notifications/size-changed", { height: document.documentElement.scrollHeight })).observe(document.body);
+    }
+  })();
+})();
+</script>
+</body>
+</html>
