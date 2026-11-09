@@ -85,13 +85,31 @@ The implementation was developed and checked against Antigravity 2.29.0. Antigra
 
 ## Install the plugin
 
-Copy this directory into Antigravity's user plugin directory and name the destination `session-stats`:
+1. Download the project and copy it into Antigravity's user plugin directory as `session-stats`:
 
-```powershell
-$dest = Join-Path $env:USERPROFILE '.gemini\config\plugins\session-stats'
-New-Item -ItemType Directory -Path $dest -Force
-Copy-Item -Path .\* -Destination $dest -Recurse -Force
-```
+   ```powershell
+   git clone https://github.com/QingYi625/antigravity-session-stats.git
+   $dest = Join-Path $env:USERPROFILE '.gemini\config\plugins\session-stats'
+   New-Item -ItemType Directory -Path $dest -Force | Out-Null
+   Copy-Item -Path .\antigravity-session-stats\* -Destination $dest -Recurse -Force
+   ```
+
+2. Register the MCP server in `%USERPROFILE%\.gemini\config\mcp_config.json`. Back the file up first, then add a `session-stats` entry under `mcpServers` and keep your existing servers:
+
+   ```json
+   {
+     "mcpServers": {
+       "session-stats": {
+         "command": "node",
+         "args": ["C:\\Users\\<you>\\.gemini\\config\\plugins\\session-stats\\server\\index.mjs"]
+       }
+     }
+   }
+   ```
+
+   Replace `<you>` with your Windows user name. If Antigravity cannot find `node`, use the full path to `node.exe`.
+
+3. Restart Antigravity so it reloads the MCP configuration.
 
 The plugin consists of:
 
@@ -105,11 +123,11 @@ ui/panel.html
 skills/session-stats/SKILL.md
 ```
 
-Antigravity expands `${PLUGIN_ROOT}` in `mcp_config.json`, so the MCP server starts from the installed plugin directory. Restart Antigravity or enable the plugin from its Customizations page after copying it.
+The plugin's own `mcp_config.json` uses `${PLUGIN_ROOT}`. The Antigravity language server contains that placeholder, but loading local plugins through it has not been verified, so registering the server directly in step 2 is the tested path.
 
 Start a new conversation and ask to open the session statistics panel, or invoke the `session_stats_panel` tool. The panel refreshes every 3 seconds and always keeps the tool's text result as a non-UI fallback.
 
-To uninstall, disable the plugin and remove the `session-stats` directory.
+To uninstall, remove the `session-stats` entry from `mcp_config.json`, delete the `session-stats` plugin directory, and restart Antigravity.
 
 ## Bottom bar (Windows)
 

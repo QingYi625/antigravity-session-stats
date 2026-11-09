@@ -85,13 +85,31 @@ Token 统计采用增量读取。第一次读取后，每次只解析新增字�
 
 ## 安装插件
 
-把当前目录复制到 Antigravity 的用户插件目录，目标目录名使用 `session-stats`：
+1. 下载项目，并复制到 Antigravity 的用户插件目录，目录名用 `session-stats`：
 
-```powershell
-$dest = Join-Path $env:USERPROFILE '.gemini\config\plugins\session-stats'
-New-Item -ItemType Directory -Path $dest -Force
-Copy-Item -Path .\* -Destination $dest -Recurse -Force
-```
+   ```powershell
+   git clone https://github.com/QingYi625/antigravity-session-stats.git
+   $dest = Join-Path $env:USERPROFILE '.gemini\config\plugins\session-stats'
+   New-Item -ItemType Directory -Path $dest -Force | Out-Null
+   Copy-Item -Path .\antigravity-session-stats\* -Destination $dest -Recurse -Force
+   ```
+
+2. 在 `%USERPROFILE%\.gemini\config\mcp_config.json` 里注册 MCP 服务。先备份这个文件，再在 `mcpServers` 下加一项 `session-stats`，原有的服务保留不动：
+
+   ```json
+   {
+     "mcpServers": {
+       "session-stats": {
+         "command": "node",
+         "args": ["C:\\Users\\<你的用户名>\\.gemini\\config\\plugins\\session-stats\\server\\index.mjs"]
+       }
+     }
+   }
+   ```
+
+   把 `<你的用户名>` 换成你的 Windows 用户名。如果 Antigravity 找不到 `node`，就改成 `node.exe` 的完整路径。
+
+3. 重启 Antigravity，让它重新读取 MCP 配置。
 
 插件包含：
 
@@ -105,11 +123,11 @@ ui/panel.html
 skills/session-stats/SKILL.md
 ```
 
-Antigravity 会展开 `mcp_config.json` 中的 `${PLUGIN_ROOT}`，所以 MCP 服务会从插件安装目录启动。复制后重启 Antigravity，或在 Customizations 页面启用插件。
+插件自带的 `mcp_config.json` 用的是 `${PLUGIN_ROOT}`。Antigravity 的语言服务器里有这个占位符，但通过它加载本地插件还没有验证过，所以第 2 步直接注册服务是验证过的做法。
 
 新建一个对话，输入“打开会话统计面板”或调用 `session_stats_panel` 工具即可。面板每 3 秒刷新一次，工具的文本结果始终作为不渲染 UI 时的降级内容。
 
-卸载时先在插件页面禁用，再删除 `session-stats` 目录。
+卸载时，从 `mcp_config.json` 里删掉 `session-stats` 这一项，删除 `session-stats` 插件目录，再重启 Antigravity。
 
 ## 底部统计条（Windows）
 
